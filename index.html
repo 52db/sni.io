@@ -70,4 +70,77 @@
                 const domains = cealHostRule[0];
                 const sni = cealHostRule[1]?.trim() || null;
                 const ip = cealHostRule[2]?.trim() || "127.0.0.1";
+
+html name=index.html url=https://github.com/52db/sni.io/blob/3e76bfffef2c46d605f2fe606a5ff1afac577f10/index.html
+        // 补全 JS 逻辑和事件绑定
+        function processData(inputValue) {
+            const cealHostName = "CYFM";
+            CealHostRulesDict[cealHostName] = [];
+            let cealHostRulesFragments = '';
+            let cealHostResolverRulesFragments = '';
+            let nullSniNum = 0;
+
+            // 验证输入是否为数组
+            if (!Array.isArray(inputValue)) {
+                $('#err').text("错误：输入数据必须为数组格式");
+                return null;
+            }
+
+            inputValue.forEach(cealHostRule => {
+                // 验证每条规则是否为数组且长度足够
+                if (!Array.isArray(cealHostRule) || cealHostRule.length < 3) {
+                    $('#err').text("错误：规则格式异常（需至少3个元素）");
+                    return;
+                }
+
+                const domains = cealHostRule[0];
+                const sni = cealHostRule[1]?.trim() || null;
+                const ip = cealHostRule[2]?.trim() || "127.0.0.1";
+
+                // 合成参数字符串
+                if (!sni) {
+                    nullSniNum++;
+                    return;
+                }
+
+                cealHostRulesFragments += `MAP ${domains} ${sni}\n`;
+                cealHostResolverRulesFragments += `MAP ${domains} ${ip}\n`;
+                CealHostRulesDict[cealHostName].push({
+                    domains, sni, ip
+                });
+            });
+
+            let result = `SNI参数规则:\n${cealHostRulesFragments}\n\nIP参数规则:\n${cealHostResolverRulesFragments}\n\n空SNI规则数: ${nullSniNum}`;
+            $('#out').val(result);
+            $('#err').text(""); // 清空错误
+            return CealHostRulesDict;
+        }
+
+        // 拉取JSON示例自动填充
+        $('#fetchButton').click(function() {
+            $('#err').text("正在加载示例数据...");
+            $.getJSON(jsonUrl, function(jsonData) {
+                // 填充到输入文本框
+                $('#in').val(JSON.stringify(jsonData, null, 2));
+                $('#err').text("已加载示例规则，请点击处理数据");
+            }).fail(function() {
+                $('#err').text("示例数据加载失败，请重试或手动填入规则！");
+            });
+        });
+
+        // 处理数据按钮
+        $('#processButton').click(function() {
+            let inputText = $('#in').val();
+            let parsed;
+            try {
+                parsed = JSON.parse(inputText);
+            } catch (e) {
+                $('#err').text("输入内容非合法JSON格式！");
+                return;
+            }
+            processData(parsed);
+        });
+    </script>
+</body>
+</html>
 </html>
