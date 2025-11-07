@@ -1,0 +1,76 @@
+<!DOCTYPE HTML>
+
+            inputValue.forEach(cealHostRule => {
+                const cealHostDomainPairs = [];
+                const cealHostSni = cealHostRule[1] === null || !cealHostRule[1].trim() ? 
+                    `${cealHostName}${CealHostRulesDict[cealHostName].length}` : cealHostRule[1].trim();
+                const cealHostIp = cealHostRule[2] && cealHostRule[2].trim() ? cealHostRule[2].trim() : "127.0.0.1";
+
+                cealHostRule[0].forEach(cealHostDomain => {
+                    const domainString = cealHostDomain.toString().trim();
+                    if (domainString.startsWith('^') || domainString.startsWith('#') || domainString.startsWith('$')) return;
+
+                    const splitDomain = domainString.split('^', 2);
+                    cealHostDomainPairs.push([splitDomain[0].trim(), splitDomain[1]?.trim() || '']);
+                });
+
+                CealHostRulesDict[cealHostName].push({ cealHostDomainPairs, cealHostSni, cealHostIp });
+            });
+
+            CealHostRulesDict[cealHostName].forEach(({ cealHostDomainPairs, cealHostSni, cealHostIp }) => {
+                const cealHostSniWithoutNull = cealHostSni || `${cealHostName}${++nullSniNum}`;
+                let isValid = false;
+
+                cealHostDomainPairs.forEach(([include, exclude]) => {
+                    if (include.startsWith('$')) return;
+                    cealHostRulesFragments += `MAP ${include.replace('#', '')} ${cealHostSniWithoutNull}`;
+                    if (exclude) cealHostRulesFragments += `,EXCLUDE ${exclude}`;
+                    cealHostRulesFragments += ',';
+                    isValid = true;
+                });
+
+                if (isValid) cealHostResolverRulesFragments += `MAP ${cealHostSniWithoutNull} ${cealHostIp},`;
+            });
+
+            const args = ` --host-rules="${cealHostRulesFragments.slice(0, -1)}" --host-resolver-rules="${cealHostResolverRulesFragments.slice(0, -1)}" --test-type --ignore-certificate-errors`;
+            return args.trim();
+        }
+
+        function fetchData() {
+            $('#err').empty();
+            fetch(jsonUrl)
+                .then(res => res.text())
+                .then(data => {
+                    $('#in').val(data);
+                })
+                .catch(err => {
+                    $('#err').text("抓取数据失败！可能是网络问题。" + err.message);
+                });
+        }
+
+        function processDataFromin() {
+            $('#err').empty();
+            try {
+                const data = JSON.parse($('#in').val());
+                const result = processData(data);
+                if (result) $('#out').val(result);
+            } catch (err) {
+                $('#err').text("输入数据解析失败：" + err.message);
+            }
+        }
+
+        // 初始化默认数据
+        window.onload = function() {
+            const googleips = ["2.188.214.157", "49.12.230.233", "209.151.148.106", "82.118.16.109", "185.217.5.3", "185.24.219.130"];
+            const randomIp = googleips[Math.floor(Math.random() * googleips.length)];
+            const defaultData = `[["*google*","*youtube.com","*.ggpht.com","i.ytimg.com"],"g.cn","${randomIp}"]`;
+            $('#in').val(defaultData);
+            $('#out').val(processData(JSON.parse(defaultData)));
+        };
+
+        // 绑定按钮点击事件
+        $('#fetchButton').on('click', fetchData);
+        $('#processButton').on('click', processDataFromin);
+    </script>
+</body>
+</html>
