@@ -1,76 +1,73 @@
 <!DOCTYPE HTML>
+<html class="no-js bg" lang="zh-cmn-Hans">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge, chrome=1">
+    <title>chromium浏览器伪造SNI工具网页版</title>
+    <link rel="icon" type="image/ico" href="/favicon.ico"> <!-- 若无favicon，可删除或替换 -->
+    
+    <!-- 精简核心CSS -->
+    <style>
+        body { background: #EFEFEF; padding: 20px; font-family: Arial, sans-serif; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        textarea { width: 100%; padding: 8px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 8px 16px; margin: 5px 0; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #1976D2; }
+        .tip { color: #666; font-size: 14px; margin-bottom: 10px; }
+        #err { color: red; margin-bottom: 10px; }
+        p { margin: 15px 0; }
+    </style>
+    <!-- 使用稳定jQuery CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="entry-content">
+            <div class="tip">如果网页未按预期执行，建议刷新网页重试</div>
+            <div id="err" style="height: 25px;"></div>
+
+            <div>SNI伪装列表：</div>
+            <textarea id="in" rows="6" placeholder="请输入或粘贴SNI伪装规则列表"></textarea>
+
+            <button id="fetchButton" class="btn btn-info">抓取数据（自动填充示例规则）</button>
+            <button id="processButton" class="btn btn-info">处理数据（生成Chromium参数）</button>
+
+            <div>执行结果：</div>
+            <textarea id="out" rows="15" readonly placeholder="生成的Chromium参数将显示在此"></textarea>
+
+            <p class="mt-20">
+                SNI规则来源： <a href="https://github.com/SpaceTimee/Cealing-Host" target="_blank">GitHub</a><br>
+                Windows客户端： <a href="https://github.com/SpaceTimee/Sheas-Cealer" target="_blank">GitHub</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const CealHostRulesDict = {};
+        const jsonUrl = 'https://raw.githubusercontent.com/SpaceTimee/Cealing-Host/refs/heads/main/Cealing-Host.json';
+
+        function processData(inputValue) {
+            const cealHostName = "CYFM";
+            CealHostRulesDict[cealHostName] = [];
+            let cealHostRulesFragments = '';
+            let cealHostResolverRulesFragments = '';
+            let nullSniNum = 0;
+
+            // 验证输入是否为数组
+            if (!Array.isArray(inputValue)) {
+                $('#err').text("错误：输入数据必须为数组格式");
+                return null;
+            }
 
             inputValue.forEach(cealHostRule => {
-                const cealHostDomainPairs = [];
-                const cealHostSni = cealHostRule[1] === null || !cealHostRule[1].trim() ? 
-                    `${cealHostName}${CealHostRulesDict[cealHostName].length}` : cealHostRule[1].trim();
-                const cealHostIp = cealHostRule[2] && cealHostRule[2].trim() ? cealHostRule[2].trim() : "127.0.0.1";
+                // 验证每条规则是否为数组且长度足够
+                if (!Array.isArray(cealHostRule) || cealHostRule.length < 3) {
+                    $('#err').text("错误：规则格式异常（需至少3个元素）");
+                    return;
+                }
 
-                cealHostRule[0].forEach(cealHostDomain => {
-                    const domainString = cealHostDomain.toString().trim();
-                    if (domainString.startsWith('^') || domainString.startsWith('#') || domainString.startsWith('$')) return;
-
-                    const splitDomain = domainString.split('^', 2);
-                    cealHostDomainPairs.push([splitDomain[0].trim(), splitDomain[1]?.trim() || '']);
-                });
-
-                CealHostRulesDict[cealHostName].push({ cealHostDomainPairs, cealHostSni, cealHostIp });
-            });
-
-            CealHostRulesDict[cealHostName].forEach(({ cealHostDomainPairs, cealHostSni, cealHostIp }) => {
-                const cealHostSniWithoutNull = cealHostSni || `${cealHostName}${++nullSniNum}`;
-                let isValid = false;
-
-                cealHostDomainPairs.forEach(([include, exclude]) => {
-                    if (include.startsWith('$')) return;
-                    cealHostRulesFragments += `MAP ${include.replace('#', '')} ${cealHostSniWithoutNull}`;
-                    if (exclude) cealHostRulesFragments += `,EXCLUDE ${exclude}`;
-                    cealHostRulesFragments += ',';
-                    isValid = true;
-                });
-
-                if (isValid) cealHostResolverRulesFragments += `MAP ${cealHostSniWithoutNull} ${cealHostIp},`;
-            });
-
-            const args = ` --host-rules="${cealHostRulesFragments.slice(0, -1)}" --host-resolver-rules="${cealHostResolverRulesFragments.slice(0, -1)}" --test-type --ignore-certificate-errors`;
-            return args.trim();
-        }
-
-        function fetchData() {
-            $('#err').empty();
-            fetch(jsonUrl)
-                .then(res => res.text())
-                .then(data => {
-                    $('#in').val(data);
-                })
-                .catch(err => {
-                    $('#err').text("抓取数据失败！可能是网络问题。" + err.message);
-                });
-        }
-
-        function processDataFromin() {
-            $('#err').empty();
-            try {
-                const data = JSON.parse($('#in').val());
-                const result = processData(data);
-                if (result) $('#out').val(result);
-            } catch (err) {
-                $('#err').text("输入数据解析失败：" + err.message);
-            }
-        }
-
-        // 初始化默认数据
-        window.onload = function() {
-            const googleips = ["2.188.214.157", "49.12.230.233", "209.151.148.106", "82.118.16.109", "185.217.5.3", "185.24.219.130"];
-            const randomIp = googleips[Math.floor(Math.random() * googleips.length)];
-            const defaultData = `[["*google*","*youtube.com","*.ggpht.com","i.ytimg.com"],"g.cn","${randomIp}"]`;
-            $('#in').val(defaultData);
-            $('#out').val(processData(JSON.parse(defaultData)));
-        };
-
-        // 绑定按钮点击事件
-        $('#fetchButton').on('click', fetchData);
-        $('#processButton').on('click', processDataFromin);
-    </script>
-</body>
+                const domains = cealHostRule[0];
+                const sni = cealHostRule[1]?.trim() || null;
+                const ip = cealHostRule[2]?.trim() || "127.0.0.1";
 </html>
